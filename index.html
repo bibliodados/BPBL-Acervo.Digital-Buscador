@@ -125,7 +125,22 @@
   <script>
     // ====== CONFIG ======
     const CATALOG_CANDIDATES = [
-      'Arquivo Digital.txt'
+      // Aceita várias grafias/nomeações comuns
+      'Arquivo Digital.txt',
+      'Arquivo%20Digital.txt',
+      'Acervo Digital.txt',
+      'Acervo%20Digital.txt',
+      'arquivo-digital.txt',
+      'acervo-digital.txt',
+      'catalogo.json',
+      'catalogo.txt',
+      'catalogo.html'
+    ];
+    // URLs remotas (GitHub) — tentadas se nada local for encontrado
+    const REMOTE_CATALOG_URLS = [
+      'https://github.com/bibliodados/BPBL-Acervo.Digital-Buscador/blob/main/Acervo%20Digital.txt',
+      'https://raw.githubusercontent.com/bibliodados/BPBL-Acervo.Digital-Buscador/main/Acervo%20Digital.txt',
+      'https://cdn.jsdelivr.net/gh/bibliodados/BPBL-Acervo.Digital-Buscador@main/Acervo%20Digital.txt'
     ];
     const BASE_PAGE = location.origin + location.pathname.replace(/[^\/]*$/, '');
     const BPBL_BASE = 'https://casas.cultura.ma.gov.br/portal/bpbl/acervodigital/'; // mesma pasta do index.html
@@ -153,30 +168,52 @@
     // ====== AUTO-CARREGAMENTO DO CATÁLOGO ======
     (async function autoLoad(){
       let ok = false; let lastErr = '';
+      // 1) Tenta local (mesma pasta do index.html)
       for (const name of CATALOG_CANDIDATES){
         try {
-          const url = BASE_PAGE + name;
+          const url = new URL(name, BASE_PAGE).href;
           const r = await fetch(url, { cache:'no-cache' });
           if (!r.ok) { lastErr = 'HTTP '+r.status; continue; }
           const ct = r.headers.get('content-type')||'';
-          let text = await r.text();
-          let parsed = null;
-          if (/json/i.test(ct) || text.trim().startsWith('{') || text.trim().startsWith('[')){
-            parsed = parseJsonCatalog(text);
-          } else {
-            parsed = parseHtmlOrTxtCatalog(text);
-          }
+          const text = await r.text();
+          let parsed = (/json/i.test(ct) || text.trim().startsWith('{') || text.trim().startsWith('['))
+            ? parseJsonCatalog(text)
+            : parseHtmlOrTxtCatalog(text);
           if (parsed.items && parsed.items.length){
             state.items = enrichItems(parsed.items);
             $status.textContent = `Catálogo detectado: ${name} · ${state.items.length} item(ns)`;
-            $meta.textContent = `Origem: ${name} · Links relativos resolvidos pela pasta do index.html`;
+            $meta.textContent = `Origem: local (${name})`;
             $diag.textContent = JSON.stringify({sample: state.items.slice(0,5)}, null, 2);
             ok = true; render(); break;
           }
         } catch(e){ lastErr = e.message; }
       }
+
+      // 2) Tenta remoto (GitHub) se nada local
       if (!ok){
-        $status.textContent = 'Não encontrei catálogo ao lado do index.html. Você pode carregar manualmente.';
+        for (let raw of REMOTE_CATALOG_URLS){
+          try{
+            const url = normalizeGithubUrl(raw);
+            const r = await fetch(url, { cache:'no-cache', mode:'cors' });
+            if (!r.ok) { lastErr = 'HTTP '+r.status; continue; }
+            const ct = r.headers.get('content-type')||'';
+            const text = await r.text();
+            let parsed = (/json/i.test(ct) || text.trim().startsWith('{') || text.trim().startsWith('['))
+              ? parseJsonCatalog(text)
+              : parseHtmlOrTxtCatalog(text);
+            if (parsed.items && parsed.items.length){
+              state.items = enrichItems(parsed.items);
+              $status.textContent = `Catálogo remoto detectado: ${url} · ${state.items.length} item(ns)`;
+              $meta.textContent = `Origem: remoto (GitHub)`;
+              $diag.textContent = JSON.stringify({sample: state.items.slice(0,5)}, null, 2);
+              ok = true; render(); break;
+            }
+          } catch(e){ lastErr = e.message; }
+        }
+      }
+
+      if (!ok){
+        $status.textContent = 'Não encontrei catálogo local nem remoto. Você pode carregar manualmente.';
         $('#fileRow').style.display = '';
       }
     })();
@@ -376,7 +413,19 @@
     function normalize(s){ return String(s).toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,''); }
     function includesNorm(hay, needle){ return normalize(hay||'').includes(normalize(needle||'')); }
     function escapeHTML(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
-    function escapeAttr(s){ return escapeHTML(s).replace(/"/g,'&quot;'); }
+    function escapeAttr(s){ return escapeHTML(s).replace(/\"/g,'&quot;'); }
+    function normalizeGithubUrl(u){
+      try {
+        const url = new URL(u);
+        if (url.hostname === 'github.com' && url.pathname.includes('/blob/')){
+          const parts = url.pathname.split('/').filter(Boolean); // user, repo, blob, branch, ...path
+          const user = parts[0], repo = parts[1], branch = parts[3];
+          const path = parts.slice(4).join('/');
+          return `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${path}`;
+        }
+        return u;
+      } catch(e){ return u; }
+    }
   </script>
 </body>
 </html>
