@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="auto">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BPBL — Busca local do Acervo (GitHub Pages)</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --panel:#111827; --muted:#9fb0c8; --text:#e6edf6; --accent:#79c0ff; --chip:#1f2a3a; --border:#1a2330;
+    }
+    :root[data-theme="light"]{
+      --bg:#f6f8fb; --panel:#ffffff; --muted:#5b6b7f; --text:#0e1621; --accent:#0b6bcb; --chip:#eaf1fb; --border:#d6e0ee;
+    }
+    :root[data-theme="auto"]{ /* segue a preferência do SO */ }
+    @media (prefers-color-scheme: light){ :root[data-theme="auto"]{ --bg:#f6f8fb; --panel:#ffffff; --muted:#5b6b7f; --text:#0e1621; --accent:#0b6bcb; --chip:#eaf1fb; --border:#d6e0ee; } }
+
+    *{box-sizing:border-box}
+    body{margin:0; font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; color:var(--text); background:var(--bg);} 
+    header{padding:18px 16px; border-bottom:1px solid var(--border); background:color-mix(in oklab, var(--panel) 90%, transparent); position:sticky; top:0; z-index:10}
+    .wrap{max-width:1180px; margin:0 auto}
+    h1{margin:0 0 6px; font-size:20px}
+    .row{display:flex; gap:10px; align-items:center; justify-content:space-between}
+    .status{font-size:12px;color:var(--muted)}
+    .theme{display:flex; gap:6px; align-items:center}
+    .seg{display:inline-flex; border:1px solid var(--border); border-radius:12px; overflow:hidden}
+    .seg button{padding:8px 10px; border:0; background:var(--panel); color:var(--text); cursor:pointer}
+    .seg button.active{outline:2px solid color-mix(in oklab, var(--accent) 30%, transparent)}
+
+    form{display:grid; grid-template-columns:repeat(12,1fr); gap:12px; margin-top:12px}
+    label{font-size:12px;color:var(--muted);display:block;margin-bottom:6px}
+    input{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--text)}
+    .btn{padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:var(--panel); color:var(--accent); cursor:pointer; font-weight:600}
+    .field{grid-column:span 3}
+    .field.q{grid-column:span 6}
+    .field.file{grid-column:span 12}
+    .chips{display:flex; gap:6px; flex-wrap:wrap}
+    .chip{background:var(--chip); color:color-mix(in oklab, var(--text) 85%, white); padding:6px 10px; border-radius:999px; font-size:12px; border:1px solid var(--border)}
+
+    main{padding:18px 16px}
+    .toolbar{display:flex; justify-content:space-between; align-items:center; gap:10px; margin:10px 0 16px}
+    .pill{padding:6px 10px; border-radius:999px; border:1px solid var(--border); color:var(--text); background:var(--panel)}
+
+    .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px}
+    .card{background:var(--panel); border:1px solid var(--border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; min-height:160px}
+    .card .content{padding:12px 14px 14px}
+    .title{font-weight:650; margin-bottom:6px}
+    .meta{font-size:12px; color:var(--muted); display:flex; gap:8px; flex-wrap:wrap}
+    .links{margin-top:10px; display:flex; gap:10px; flex-wrap:wrap}
+    a.a{color:var(--accent); text-decoration:none; font-weight:600}
+    a.a:hover{text-decoration:underline}
+
+    details.debug{margin-top:14px}
+    code{font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size:12px}
+    @media(max-width:860px){ .field{grid-column:span 6} .field.q{grid-column:span 12} }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="row">
+        <div>
+          <h1>BPBL — Busca local do Acervo</h1>
+          <div class="status" id="status">Tentando carregar o catálogo automaticamente…</div>
+        </div>
+        <div class="theme">
+          <span class="status">Tema</span>
+          <div class="seg" id="themeSeg">
+            <button data-mode="auto" class="active" title="Automático">Auto</button>
+            <button data-mode="light" title="Claro">Claro</button>
+            <button data-mode="dark" title="Escuro">Escuro</button>
+          </div>
+        </div>
+      </div>
+
+      <form id="searchForm" autocomplete="off">
+        <div class="field q">
+          <label for="q">Consulta inteligente (ex.: <code>autor:Azevedo assunto:imprensa ano:1890-1910 tipografia</code>)</label>
+          <input id="q" type="text" placeholder="Digite termos livres e/ou operadores: autor:, assunto:, titulo:, ano:" />
+        </div>
+        <div class="field">
+          <label for="titulo">Título</label>
+          <input id="titulo" type="text" placeholder="Palavra-chave no título" />
+        </div>
+        <div class="field">
+          <label for="autor">Autor</label>
+          <input id="autor" type="text" placeholder="Nome do autor" />
+        </div>
+        <div class="field">
+          <label for="assunto">Assunto</label>
+          <input id="assunto" type="text" placeholder="Tema/assunto (palavra-chave)" />
+        </div>
+        <div class="field">
+          <label for="ano">Ano (AAAA ou AAAA-AAAA)</label>
+          <input id="ano" inputmode="numeric" placeholder="Ex.: 1927 ou 1890-1910" />
+        </div>
+        <div class="field file" id="fileRow" style="display:none">
+          <label for="file">(Fallback) Carregar catálogo manualmente (HTML/TXT/JSON)</label>
+          <input id="file" type="file" accept="application/json,text/plain,text/html,.json,.txt,.htm,.html" />
+        </div>
+        <div class="actions" style="grid-column:span 12; display:flex; gap:10px; align-items:center">
+          <button class="btn" type="submit">Pesquisar</button>
+          <button class="btn" id="limpar" type="button">Limpar</button>
+          <span class="chips" id="chips"></span>
+        </div>
+      </form>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="toolbar">
+      <div class="status" id="meta">Aguardando catálogo…</div>
+      <div>
+        <span class="pill" id="pageInfo">Página 1</span>
+      </div>
+    </div>
+
+    <section class="grid" id="results"></section>
+
+    <details class="debug">
+      <summary>Diagnóstico</summary>
+      <pre id="diag"></pre>
+    </details>
+  </main>
+
+  <script>
+    // ====== CONFIG ======
+    const CATALOG_CANDIDATES = [
+      'Arquivo Digital.txt'
+    ];
+    const BASE_PAGE = location.origin + location.pathname.replace(/[^\/]*$/, '');
+    const BPBL_BASE = 'https://casas.cultura.ma.gov.br/portal/bpbl/acervodigital/'; // mesma pasta do index.html
+    const PAGESIZE = 36;
+
+    // ====== TEMA ======
+    const root = document.documentElement;
+    const savedTheme = localStorage.getItem('bpbl-theme') || 'auto';
+    applyTheme(savedTheme);
+    const themeSeg = document.getElementById('themeSeg');
+    themeSeg.addEventListener('click', (e)=>{
+      if (e.target.tagName !== 'BUTTON') return;
+      const mode = e.target.getAttribute('data-mode');
+      applyTheme(mode);
+      [...themeSeg.querySelectorAll('button')].forEach(b=>b.classList.toggle('active', b===e.target));
+    });
+    function applyTheme(mode){ root.setAttribute('data-theme', mode); localStorage.setItem('bpbl-theme', mode); }
+
+    // ====== ESTADO ======
+    const state = { items: [], filtered: [], page: 1 };
+    const $ = (s)=>document.querySelector(s);
+    const $status = $('#status'); const $meta = $('#meta'); const $diag = $('#diag');
+    const $results = $('#results'); const $page = $('#pageInfo'); const $chips = $('#chips');
+
+    // ====== AUTO-CARREGAMENTO DO CATÁLOGO ======
+    (async function autoLoad(){
+      let ok = false; let lastErr = '';
+      for (const name of CATALOG_CANDIDATES){
+        try {
+          const url = BASE_PAGE + name;
+          const r = await fetch(url, { cache:'no-cache' });
+          if (!r.ok) { lastErr = 'HTTP '+r.status; continue; }
+          const ct = r.headers.get('content-type')||'';
+          let text = await r.text();
+          let parsed = null;
+          if (/json/i.test(ct) || text.trim().startsWith('{') || text.trim().startsWith('[')){
+            parsed = parseJsonCatalog(text);
+          } else {
+            parsed = parseHtmlOrTxtCatalog(text);
+          }
+          if (parsed.items && parsed.items.length){
+            state.items = enrichItems(parsed.items);
+            $status.textContent = `Catálogo detectado: ${name} · ${state.items.length} item(ns)`;
+            $meta.textContent = `Origem: ${name} · Links relativos resolvidos pela pasta do index.html`;
+            $diag.textContent = JSON.stringify({sample: state.items.slice(0,5)}, null, 2);
+            ok = true; render(); break;
+          }
+        } catch(e){ lastErr = e.message; }
+      }
+      if (!ok){
+        $status.textContent = 'Não encontrei catálogo ao lado do index.html. Você pode carregar manualmente.';
+        $('#fileRow').style.display = '';
+      }
+    })();
+
+    // ====== UPLOAD MANUAL (FALLBACK) ======
+    $('#file').addEventListener('change', async (ev)=>{
+      const f = ev.target.files && ev.target.files[0]; if (!f) return;
+      const text = await f.text();
+      let parsed = null;
+      try{
+        parsed = parseJsonCatalog(text);
+      } catch{ parsed = parseHtmlOrTxtCatalog(text); }
+      state.items = enrichItems(parsed.items);
+      state.page = 1; render();
+      $status.textContent = `Catálogo carregado manualmente: ${f.name} · ${state.items.length} item(ns)`;
+      $diag.textContent = JSON.stringify({sample: state.items.slice(0,5)}, null, 2);
+    });
+
+    // ====== BUSCA ======
+    $('#searchForm').addEventListener('submit', (e)=>{ e.preventDefault(); state.page=1; render(); });
+    $('#limpar').addEventListener('click', ()=>{ ['q','titulo','autor','assunto','ano'].forEach(id=>document.getElementById(id).value=''); state.page=1; render(); });
+
+    function render(){
+      const qp = parseQuery($('#q').value || '');
+      const titulo = $('#titulo').value.trim();
+      const autor = $('#autor').value.trim();
+      const assunto = $('#assunto').value.trim();
+      const anoRaw = $('#ano').value.trim();
+      const [ymin,ymax] = parseYearRange(anoRaw || qp.ano || '');
+
+      const qTitulo = qp.titulo || titulo;
+      const qAutor  = qp.autor || autor;
+      const qAssunto= qp.assunto || assunto;
+      const qLivre  = qp.livre; // termos soltos
+
+      const filtered = state.items.filter(it => {
+        if (qTitulo && !includesNorm(it.title, qTitulo)) return false;
+        // Autor: se não houver autor inferido, caímos no título como fallback
+        if (qAutor && !(includesNorm(it.author, qAutor) || includesNorm(it.title, qAutor))) return false;
+        // Assunto: verifica nos assuntos e também no título como fallback
+        if (qAssunto && !(includesNorm(it.subjects.join(' '), qAssunto) || includesNorm(it.title, qAssunto))) return false;
+        if (qLivre && !includesNorm([it.title,it.author,it.subjects.join(' ')].join(' '), qLivre)) return false;
+        if (ymin && (it.year||0) < ymin) return false;
+        if (ymax && (it.year||0) > ymax) return false;
+        return true;
+      });
+
+      state.filtered = filtered;
+      $meta.textContent = `Catálogo carregado: ${state.items.length} · Filtro ativo: ${filtered.length} resultado(s)`;
+      const totalPages = Math.max(1, Math.ceil(filtered.length / PAGESIZE));
+      if (state.page>totalPages) state.page = totalPages;
+      const start = (state.page-1)*PAGESIZE;
+      const page = filtered.slice(start, start+PAGESIZE);
+
+      $results.innerHTML = page.map(card).join('');
+      $page.textContent = `Página ${state.page} de ${totalPages}`;
+      const chips = [];
+      if (qTitulo) chips.push(`<span class="chip">título: ${escapeHTML(qTitulo)}</span>`);
+      if (qAutor) chips.push(`<span class="chip">autor: ${escapeHTML(qAutor)}</span>`);
+      if (qAssunto) chips.push(`<span class="chip">assunto: ${escapeHTML(qAssunto)}</span>`);
+      if (ymin || ymax) chips.push(`<span class="chip">ano: ${escapeHTML((ymin||'') + (ymax&&ymax!==ymin?'-'+ymax:''))}</span>`);
+      if (qp.livre) chips.push(`<span class="chip">livre: ${escapeHTML(qp.livre)}</span>`);
+      $chips.innerHTML = chips.join('');
+    }
+
+    function card(it){
+      const t = escapeHTML(it.title || '(sem título)');
+      const a = it.author ? `<span><b>Autor:</b> ${escapeHTML(it.author)}</span>` : '';
+      const s = it.subjects.length ? `<span><b>Assunto(s):</b> ${escapeHTML(it.subjects.join('; '))}</span>` : '';
+      const y = it.year ? `<span><b>Ano:</b> ${it.year}</span>` : '';
+      let href = it.href ? it.href : '';
+      // Se o link for relativo, compõe com domínio BPBL
+      if (href && !/^https?:/i.test(href)){
+        href = new URL(href, 'https://casas.cultura.ma.gov.br/portal/bpbl/acervodigital/').href;
+      }
+      return `
+        <article class="card">
+          <div class="content">
+            <div class="title">${t}</div>
+            <div class="meta">${[a,s,y].filter(Boolean).join(' · ')}</div>
+            <div class="links">${ href!=='#' ? `<a class="a" href="${href}" target="_blank" rel="noopener">Abrir PDF</a>` : ''}</div>
+          </div>
+        </article>`;
+    }
+
+    // ====== PARSERS ======
+    function parseJsonCatalog(text){
+      const data = JSON.parse(text);
+      const arr = Array.isArray(data) ? data : (data.items || []);
+      const items = arr.map(x => ({
+        title: x.title || x.name || '',
+        href: x.url || x.permalink || x.href || (x.document && (x.document.download_url||x.document.url)) || '',
+        year: x.year || guessYear(x.title||x.name||''),
+        author: x.author || '',
+        subjects: x.subjects || []
+      }));
+      return {items};
+    }
+
+    function parseHtmlOrTxtCatalog(text){
+      // tenta HTML com DOMParser
+      let items = [];
+      try {
+        const doc = new DOMParser().parseFromString(text, 'text/html');
+        items = extractFromDom(doc);
+      } catch{}
+      if (!items.length){ items = extractByRegex(text); }
+      return {items};
+    }
+
+    function extractFromDom(doc){
+      const out = [];
+      const lis = doc.querySelectorAll('li');
+      for (const li of lis){
+        const anchors = li.querySelectorAll('a[href]');
+        const pdf = [...anchors].find(a=>/\.pdf(\?|$)/i.test(a.getAttribute('href')||''));
+        if (!pdf) continue;
+        const href = pdf.getAttribute('href');
+        let title = '';
+        if (anchors.length>=2){ title = anchors[1].textContent.trim(); }
+        if (!title) title = (pdf.textContent||'').trim();
+        out.push({ href, title });
+      }
+      return out;
+    }
+
+    function extractByRegex(text){
+      const out = [];
+      const re = /<a[^>]+href=['"]([^'"]+\.pdf)[^>]*>[^<]*<\/a>\s*<a[^>]+href=['"][^'"]+\.pdf[^>]*>([^<]+)<\/a>/gi;
+      let m; while ((m = re.exec(text))) out.push({ href:m[1], title:m[2] });
+      if (!out.length){ // fallback simples
+        const re2 = /<a[^>]+href=['"]([^'"]+\.pdf)[^>]*>([^<]+)<\/a>/gi; let k;
+        while ((k = re2.exec(text))) out.push({ href:k[1], title:k[2] });
+      }
+      return out;
+    }
+
+    // ====== ENRIQUECIMENTO (autor/assunto/ano + URL absoluta) ======
+    function enrichItems(items){
+      return items.map(x => {
+        const title = (x.title||'').trim();
+        const href = absolutize(x.href||'');
+        const year = x.year || guessYear(title);
+        const author = (x.author || guessAuthor(title));
+        const subjects = (x.subjects && x.subjects.length ? x.subjects : guessSubjects(title));
+        return { title, href, year, author, subjects };
+      });
+    }
+
+    function absolutize(href){
+      if (!href) return '';
+      if (/^https?:\/\//i.test(href)) return href; // já absoluto
+      // Sempre resolver contra o domínio oficial da BPBL (garante link público)
+      return new URL(href, BPBL_BASE).href;
+    }
+    function guessYear(title){ const m = String(title).match(/(1[89]\d{2}|20\d{2})/); return m?parseInt(m[1],10):null; }
+
+    // Heurística simples de autor: pega sequências de 2–4 palavras com iniciais maiúsculas após travessão, hífen, "por", "de" etc.
+    function guessAuthor(title){
+      const t = ' ' + title + ' ';
+      const m = t.match(/(?:—|-| por | de | do | da )\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][\p{L}']+(?:\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ][\p{L}']+){1,3})/u);
+      return m ? m[1].trim() : '';
+    }
+
+    // Heurística de assuntos: remove stopwords e pega palavras relevantes (≥ 5 letras) + alguns termos canônicos
+    const STOP = new Set('a,o,as,os,um,uma,uns,umas,de,do,da,dos,das,em,no,na,nos,nas,para,por,com,sem,entre,sobre,ao,aos,à,às,e,ou,que,como,dos,às'.split(','));
+    const CANON = ['imprensa','legislação','história','educação','tipografia','relatório','anuário','estatística','cartografia','bibliografia','memória','atlas','crônica','poesia','romance','teatro','jurisprudência','documentos'];
+    function guessSubjects(title){
+      const toks = normalize(title).split(/[^\p{L}\p{N}]+/u).filter(w=>w && !STOP.has(w) && w.length>=5);
+      const set = new Set();
+      for (const t of toks){ if (CANON.includes(t)) set.add(t); }
+      // adiciona as 2 palavras mais longas como candidatos
+      toks.sort((a,b)=>b.length-a.length);
+      for (const t of toks.slice(0,2)) set.add(t);
+      return [...set];
+    }
+
+    // ====== QUERY INTELIGENTE ======
+    function parseQuery(s){
+      const q = { autor:'', assunto:'', titulo:'', ano:'', livre:'' };
+      const parts = s.match(/(?:\w+:[^\s]+|"[^"]+"|[^\s]+)/g) || [];
+      for (const p of parts){
+        const m = p.match(/^(autor|assunto|titulo|ano):(.*)$/i);
+        if (m){ q[m[1].toLowerCase()] = m[2].replace(/^["']|["']$/g,''); }
+        else { q.livre = (q.livre + ' ' + p).trim(); }
+      }
+      return q;
+    }
+
+    // ====== UTIL ======
+    function parseYearRange(s){
+      if (!s) return [null,null];
+      const m = s.match(/^(\d{4})(?:\s*[-–]\s*(\d{4}))?$/);
+      if (!m) return [parseInt(s,10)||null, parseInt(s,10)||null];
+      const a = parseInt(m[1],10); const b = m[2]?parseInt(m[2],10):a; return [Math.min(a,b), Math.max(a,b)];
+    }
+    function normalize(s){ return String(s).toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,''); }
+    function includesNorm(hay, needle){ return normalize(hay||'').includes(normalize(needle||'')); }
+    function escapeHTML(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+    function escapeAttr(s){ return escapeHTML(s).replace(/"/g,'&quot;'); }
+  </script>
+</body>
+</html>
